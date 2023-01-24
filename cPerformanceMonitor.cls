@@ -20,7 +20,7 @@ Attribute VB_Exposed = False
 '************
 '
 '************
-'VERSION    *   1.0.1
+'VERSION    *   1.1.0
 '************
 '
 '************
@@ -36,6 +36,8 @@ Attribute VB_Exposed = False
 '  2. PUB - SUB - StartCounter
 '  3. PUB - PRO - TimeElapsed
 '  4. PUB - SUB - Pause
+'  5. PRI - FUN - NextTick
+'  6. PRI - FUN - GetCurrentTime
 '
 '==============================================================================
 '
@@ -138,10 +140,12 @@ Attribute VB_Exposed = False
         Dim ccyEndTime          As Currency
         Dim ccyFrequency        As Currency
         Dim ccyTimeElapsed      As Currency
+'
 Private Sub Class_Initialize()
     GetFrequency ccyFrequency
 End Sub
-Public Sub StartCounter(Optional Method As Integer = 4)
+'
+Public Sub StartCounter(Optional Method As Integer = 5)
 '------------------------------------------------------------------------------
 'ROUTINE
 '------------------------------------------------------------------------------
@@ -154,7 +158,7 @@ Public Sub StartCounter(Optional Method As Integer = 4)
             'control so, it may not be triggered at exactly the correct time.
             'Delays can be caused by other applications or system processes.
         Case 1
-            T1 = Timer
+            T1 = NextTick
         
         '------------------------------
         'GETTICKCOUNT API
@@ -174,6 +178,13 @@ Public Sub StartCounter(Optional Method As Integer = 4)
             T1 = timeGetTime()
         
         '------------------------------
+        'TIMEGETSYSTEMTIME API
+        '------------------------------
+            'IT RETURNS THE CURRENT TIME IN MILLISECONDS
+        Case 4
+            T1 = GetCurrentTime()
+        
+        '------------------------------
         'QUERYPERFORMANCECOUNTER API
         '------------------------------
             'QueryPerformanceCounter returns the current value of the computer’s
@@ -186,21 +197,15 @@ Public Sub StartCounter(Optional Method As Integer = 4)
             'which is a 64-bit integer. VBA doesn’t have a 64-bit integer
             '(the VBA long integer has only 32-bits). Luckily, we can use the
             'VBA currency data type, which is 64-bit.
-        Case 4
-            GetTime ccyStartTime
-            
-        '------------------------------
-        'TIMEGETSYSTEMTIME API
-        '------------------------------
-            'IT RETURNS THE CURRENT TIME IN MILLISECONDS
         Case 5
-            T1 = GetCurrentTime()
+            GetTime ccyStartTime
             
         'WRONG INPUT
         Case Else
             Exit Sub
     End Select
 End Sub
+'
 Public Property Get TimeElapsed(Optional iMethod As Integer = 5) As Variant
 '------------------------------------------------------------------------------
 'ROUTINE
@@ -240,8 +245,6 @@ Public Property Get TimeElapsed(Optional iMethod As Integer = 5) As Variant
                 ccyFrequency)
             ET = ccyTimeElapsed / 1000
         
-
-            
         'WRONG INPUT
         Case Else
             Exit Property
@@ -253,18 +256,40 @@ Public Property Get TimeElapsed(Optional iMethod As Integer = 5) As Variant
     TimeElapsed = Strings.Format(Int(ET) / (86400), "HH:mm:ss") & " and " & _
             Strings.Right(Strings.Format(ET, "#0.000"), 3) & " ms"
 End Property
+'
 Private Function GetCurrentTime() As Long
-    'TIMEGESTSYSTEMTIME
+'DECLARE
     Const TIME_MS = 1
     Dim Mmt As MMTIME
+'INITIALIZE
     Mmt.wType = TIME_MS
     timeGetSystemTime Mmt, LenB(Mmt)
+'ASSIGN RESULT
     GetCurrentTime = Mmt.Units
 End Function
+'
+Private Function NextTick() As Double
+'Timer can suffer some inaccuracy
+'The starttime may be assigned when the system tick is about to expire
+'Your routine could appear to take longer that it actually does.
+'That's why we wait for the next Timer tick
+
+'DECLARE
+    Dim T As Single
+'INITIALIZE
+    T = Timer
+'LOOP
+    Do: Loop While T = Timer
+'ASSIGN RESULT
+    NextTick = Timer
+    
+End Function
+'
 Public Sub Pause(ByVal lSeconds As Byte, Optional iMethod As Integer = 1)
 '
-'This SUB can be used for testing
+'This SUB will pause the system for a given number of seconds.
 'The number of seconds is limited by the data type (0-256)
+'Can be used for testing
 '
 '------------------------------------------------------------------------------
 'CONTROL
@@ -320,9 +345,9 @@ Proc_Err:
     Debug.Print "???"
 End Sub
 '
-'..............................................................................
+'//////////////////////////////////////////////////////////////////////////////
 '                                 TEST
-'..............................................................................
+'//////////////////////////////////////////////////////////////////////////////
 '
 'Copy this routine in a standard module
 Public Sub TestPerformance()
@@ -358,6 +383,9 @@ End Sub
 '                               RELEASE NOTE
 '//////////////////////////////////////////////////////////////////////////////
 '
-'1.0.1 24/01/2023
-'   - Added example for testing
+'  1.1.0    - 24/01/2023
+'
+'           - Improved accuracy for Timer method (Function NextTick)
+'           - Added example for testing
+'______________________________________________________________________________
 '
