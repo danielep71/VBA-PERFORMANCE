@@ -20,7 +20,7 @@ Attribute VB_Exposed = False
 '************
 '
 '************
-'VERSION    *   1.0
+'VERSION    *   1.0.1
 '************
 '
 '************
@@ -46,6 +46,11 @@ Attribute VB_Exposed = False
 '------------------------------------------------------------------------------
 'MODULE DECLARATIONS
 '------------------------------------------------------------------------------
+    '
+    '::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+    'API DECLARATIONS (work with every VBA (VBA6 and VBA7) and bitness (32/64)
+    '::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+    '
     'GETTICKCOUNT API
         #If VBA7 Then
             'Use LongPtr as return value type for both declarations to avoid
@@ -67,6 +72,31 @@ Attribute VB_Exposed = False
             Private Declare PtrSafe Function timeGetTime Lib "winmm" () As Long
         #Else
             Private Declare Function timeGetTime Lib "winmm.dll" Alias "timeGetTime" () As Long
+        #End If
+        
+    'TIMEGESTSYSTEMTIME API
+        Private Type SMPTE
+            Hour        As Byte
+            Min         As Byte
+            Sec         As Byte
+            Frame       As Byte
+            Fps         As Byte
+            Dummy       As Byte
+            Pad(2)      As Byte
+        End Type
+        Private Type MMTIME
+            wType       As Long
+            Units       As Long
+            smpteVal    As Long
+            songPtrPos  As Long
+        End Type
+        
+        #If VBA7 Then
+            Private Declare PtrSafe Function timeGetSystemTime Lib "winmm.dll" _
+                (lpTime As MMTIME, ByVal uSize As Long) As Long
+        #Else
+            Private Declare Function timeGetSystemTime Lib "winmm.dll" Alias _
+            "timeGetSystemTime" (lpTime As MMTIME, ByVal uSize As Long) As Long
         #End If
     
     'QUERYPERFORMANCECOUNTER API
@@ -94,12 +124,15 @@ Attribute VB_Exposed = False
             Private Declare Sub Sleep Lib "kernel32" ( _
                         ByVal dwMilliseconds As Long)
         #End If
-        
-    'Timer, GetTickCount, TimeGetTime method
+    '
+    '::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+    'VARIABLES
+    '::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+    '
+    'Timer, GetTickCount, TimeGetTime, TimeGetSystemTime method
         Private T1              As Double       'Start Time
         Private T2              As Double       'End time
         Private ET              As Double       'Elapsed Time
-    
     'QueryPerformance method
         Dim ccyStartTime        As Currency
         Dim ccyEndTime          As Currency
@@ -156,12 +189,19 @@ Public Sub StartCounter(Optional Method As Integer = 4)
         Case 4
             GetTime ccyStartTime
             
+        '------------------------------
+        'TIMEGETSYSTEMTIME API
+        '------------------------------
+            'IT RETURNS THE CURRENT TIME IN MILLISECONDS
+        Case 5
+            T1 = GetCurrentTime()
+            
         'WRONG INPUT
         Case Else
             Exit Sub
     End Select
 End Sub
-Public Property Get TimeElapsed(Optional iMethod As Integer = 4) As Variant
+Public Property Get TimeElapsed(Optional iMethod As Integer = 5) As Variant
 '------------------------------------------------------------------------------
 'ROUTINE
 '------------------------------------------------------------------------------
@@ -188,13 +228,20 @@ Public Property Get TimeElapsed(Optional iMethod As Integer = 4) As Variant
             T2 = timeGetTime()
             ET = (T2 - T1) / 1000
         
-        'QUERYPERFORMANCE
+        'TIMEGESTSYSTEMTIME
         Case 4
+            T2 = GetCurrentTime
+            ET = (T2 - T1) / 1000
+        
+        'QUERYPERFORMANCE
+        Case 5
             GetTime ccyEndTime
             ccyTimeElapsed = ((ccyEndTime - ccyStartTime) * 1000 / _
                 ccyFrequency)
             ET = ccyTimeElapsed / 1000
         
+
+            
         'WRONG INPUT
         Case Else
             Exit Property
@@ -206,7 +253,14 @@ Public Property Get TimeElapsed(Optional iMethod As Integer = 4) As Variant
     TimeElapsed = Strings.Format(Int(ET) / (86400), "HH:mm:ss") & " and " & _
             Strings.Right(Strings.Format(ET, "#0.000"), 3) & " ms"
 End Property
-
+Private Function GetCurrentTime() As Long
+    'TIMEGESTSYSTEMTIME
+    Const TIME_MS = 1
+    Dim Mmt As MMTIME
+    Mmt.wType = TIME_MS
+    timeGetSystemTime Mmt, LenB(Mmt)
+    GetCurrentTime = Mmt.Units
+End Function
 Public Sub Pause(ByVal lSeconds As Byte, Optional iMethod As Integer = 1)
 '
 'This SUB can be used for testing
@@ -217,11 +271,11 @@ Public Sub Pause(ByVal lSeconds As Byte, Optional iMethod As Integer = 1)
 '------------------------------------------------------------------------------
     If iMethod < 1 Or iMethod > 3 Then GoTo Proc_Err
 '------------------------------------------------------------------------------
-'INITILAIZE
+'INITIALIZE
 '------------------------------------------------------------------------------
     On Error GoTo Proc_Err
 '------------------------------------------------------------------------------
-'ASSIGN RESULT
+'MAIN ROUTINE
 '------------------------------------------------------------------------------
     Select Case iMethod
         Case 1
@@ -232,6 +286,8 @@ Public Sub Pause(ByVal lSeconds As Byte, Optional iMethod As Integer = 1)
             'time delays, which may vary slightly on different machines.
             'The advantage of the Sleep statement over the Wait function is that
             'it is more flexible as you can give the time delays in milliseconds.
+            'SLEEP releases the CPU and allows other applications to run on real
+            'multitask systems
         Sleep lSeconds * 1000
         '------------------------------
         'APPLICATION.WAIT
@@ -253,13 +309,55 @@ Public Sub Pause(ByVal lSeconds As Byte, Optional iMethod As Integer = 1)
             Wend
     End Select
 '------------------------------------------------------------------------------
-'ASSIGN RESULT
+'EXIT
 '------------------------------------------------------------------------------
 Proc_Exit:
     Exit Sub
 '------------------------------------------------------------------------------
-'HANDLE ERROR
+'HANDLE ERRORS
 '------------------------------------------------------------------------------
 Proc_Err:
     Debug.Print "???"
 End Sub
+'
+'..............................................................................
+'                                 TEST
+'..............................................................................
+'
+'Copy this routine in a standard module
+Public Sub TestPerformance()
+'------------------------------------------------------------------------------
+'DECLARE
+'------------------------------------------------------------------------------
+    Dim cPM As cPerformanceMonitor
+    Dim i As Long
+'------------------------------------------------------------------------------
+'INITIALIZE
+'------------------------------------------------------------------------------
+    Set cPM = New cPerformanceMonitor
+'------------------------------------------------------------------------------
+'TEST CLASS MODULE
+'------------------------------------------------------------------------------
+    cPM.StartCounter                    'Default 5
+        cPM.Pause 1                     '1 second
+    Debug.Print cPM.TimeElapsed
+'------------------------------------------------------------------------------
+'TEST YOUR CODE
+'------------------------------------------------------------------------------
+    cPM.StartCounter (1)
+        'Your code here (example)
+        For i = 1 To 10000000: Next i   'Empty loop
+    Debug.Print cPM.TimeElapsed(1)
+'------------------------------------------------------------------------------
+'EXIT
+'------------------------------------------------------------------------------
+    Set cPM = Nothing
+End Sub
+'
+'//////////////////////////////////////////////////////////////////////////////
+'                               RELEASE NOTE
+'//////////////////////////////////////////////////////////////////////////////
+'
+'1.0.1 24/01/2023
+'   - Added example for testing
+'
