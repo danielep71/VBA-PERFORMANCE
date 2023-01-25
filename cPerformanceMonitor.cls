@@ -12,7 +12,7 @@ Attribute VB_Exposed = False
 '==============================================================================
 '
 '************
-'DESCRIPTION*   High-precision timer used to benchmark procedures' performance.
+'DESCRIPTION*   High-precision timer
 '************
 '
 '************
@@ -154,9 +154,13 @@ Attribute VB_Exposed = False
         Dim ccyFrequency        As Currency
         Dim ccyTimeElapsed      As Currency
 '
+'______________________________________________________________________________
+'
 Private Sub Class_Initialize()
     GetFrequency ccyFrequency
 End Sub
+'
+'______________________________________________________________________________
 '
 Public Sub StartCounter(Optional Method As Integer = 5)
 '------------------------------------------------------------------------------
@@ -219,6 +223,8 @@ Public Sub StartCounter(Optional Method As Integer = 5)
     
     End Select
 End Sub
+'
+'______________________________________________________________________________
 '
 Public Property Get TimeElapsed(Optional iMethod As Integer = 5) As Variant
 '------------------------------------------------------------------------------
@@ -293,6 +299,8 @@ Public Property Get TimeElapsed(Optional iMethod As Integer = 5) As Variant
         sNanoSeconds & " ns"
 End Property
 '
+'______________________________________________________________________________
+'
 Private Function GetCurrentTime() As Long
 'DECLARE
     Const TIME_MS = 1
@@ -303,6 +311,8 @@ Private Function GetCurrentTime() As Long
 'ASSIGN RESULT
     GetCurrentTime = Mmt.Units
 End Function
+'
+'______________________________________________________________________________
 '
 Private Function GetDecimalString( _
                     ByVal dNumber As Double, _
@@ -316,6 +326,8 @@ Private Function GetDecimalString( _
     GetDecimalString = Right(strDecimals, Len(strDecimals) - 2) & _
         String$(iDigits - Len(strDecimals) + 2, "0")
 End Function
+'
+'______________________________________________________________________________
 '
 Private Function NextTick() As Double
 'Timer can suffer some inaccuracy
@@ -333,6 +345,8 @@ Private Function NextTick() As Double
     NextTick = Timer
     
 End Function
+'
+'______________________________________________________________________________
 '
 Public Sub Pause(ByVal lSeconds As Long, Optional iMethod As Integer = 1)
 '
@@ -398,6 +412,8 @@ End Sub
 '//////////////////////////////////////////////////////////////////////////////
 '
 'Copy this routine in a standard module
+'______________________________________________________________________________
+'
 Public Sub Test_PerformanceMonitor()
 '------------------------------------------------------------------------------
 'DECLARE
