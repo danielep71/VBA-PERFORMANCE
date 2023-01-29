@@ -20,11 +20,11 @@ Attribute VB_Exposed = False
 '************
 '
 '************
-'VERSION    *   1.2.0
+'VERSION    *   1.2.2
 '************
 '
 '************
-'LAST UPDATE*   24/01/2023
+'LAST UPDATE*   28/01/2023
 '************
 '
 '==============================================================================
@@ -33,8 +33,8 @@ Attribute VB_Exposed = False
 '************
 '
 '  1. PRI - SUB - Class_Initialize
-'  2. PUB - SUB - StartCounter
-'  3. PUB - PRO - TimeElapsed
+'  2. PUB - SUB - StartTimer
+'  3. PUB - PRO - ElapsedTime
 '  4. PUB - SUB - Pause
 '  5. PRI - FUN - NextTick
 '  6. PRI - FUN - GetCurrentTime
@@ -44,7 +44,7 @@ Attribute VB_Exposed = False
 '------------------------------------------------------------------------------
 'MODULE SETTINGS
 '------------------------------------------------------------------------------
-    Option Explicit     'Force to declare all variables
+Option Explicit     'Force to declare all variables
 '------------------------------------------------------------------------------
 'MODULE DECLARATIONS
 '------------------------------------------------------------------------------
@@ -64,32 +64,38 @@ Attribute VB_Exposed = False
     'LongPtr    ==> returns LONG for 32-bit and LONGLONG for 64-bit
     '
     
-    'GETTICKCOUNT API
-        #If VBA7 Then   ' Excel 2010 or later
-            'Use LongPtr as return value type for both declarations to avoid
-            'platform dependencies in the calling code
+    'GETTICKCOUNT API               - LIB kernel21
+        #If VBA7 Then
             #If Win64 Then
                 Private Declare PtrSafe Function GetTickCount Lib "kernel32" _
                     Alias "GetTickCount64" () As LongPtr    'LongLong
             #Else
-                Private Declare PtrSafe Function GetTickCount Lib "kernel32" _
-                    () As LongPtr                           'Long
+                Private Declare PtrSafe Function GetTickCount Lib "kernel32" () _
+                    As LongPtr                           'Long
             #End If
         #Else
-            Private Declare Function GetTickCount Lib "kernel32" _
-                    Alias "timeGetTime"() As Long
+            Private Declare Function GetTickCount Lib "kernel32" Alias _
+                "timeGetTime"() As Long
         #End If
 
-    'TIMEGETTIME API
+    'TIMEGETTIME API                - LIB winmm
         #If VBA7 Then
-            Private Declare PtrSafe Function timeGetTime Lib "winmm.dll" _
-                () As LongPtr
+            Private Declare PtrSafe Function timeGetTime Lib "winmm.dll" () As _
+                LongPtr
+            Private Declare PtrSafe Function timeBeginPeriod Lib "winmm.dll" _
+                (ByVal uPeriod As Integer) As Integer
+            Private Declare PtrSafe Function timeEndPeriod Lib "winmm.dll" _
+                (ByVal uPeriod As Integer) As Integer
         #Else
-            Private Declare Function timeGetTime Lib "winmm.dll" _
-                Alias "timeGetTime" () As Long
+            Private Declare Function timeGetTime Lib "winmm.dll" Alias _
+                "timeGetTime" () As Long
+            Private Declare Function timeBeginPeriod Lib "winmm.dll" (ByVal _
+                uPeriod As Integer) As Integer
+            Private Declare Function timeEndPeriod Lib "winmm.dll" (ByVal _
+                uPeriod As Integer) As Integer
         #End If
         
-    'TIMEGESTSYSTEMTIME API
+    'TIMEGESTSYSTEMTIME API         - LIB winmm
         Private Type SMPTE
             Hour        As Byte
             Min         As Byte
@@ -111,122 +117,89 @@ Attribute VB_Exposed = False
                 (lpTime As MMTIME, ByVal uSize As Long) As LongPtr
         #Else
             Private Declare Function timeGetSystemTime Lib "winmm.dll" Alias _
-            "timeGetSystemTime" (lpTime As MMTIME, ByVal uSize As Long) As Long
+                "timeGetSystemTime" (lpTime As MMTIME, ByVal uSize As Long) As Long
         #End If
     
-    'QUERYPERFORMANCECOUNTER API
+    'QUERYPERFORMANCECOUNTER API    - LIB kernel32
         #If VBA7 Then
-            Private Declare PtrSafe Function GetFrequency Lib "kernel32" _
-                Alias "QueryPerformanceFrequency" (ByRef Frequency As _
-                Currency) As LongPtr
-            Private Declare PtrSafe Function GetTime Lib "kernel32" _
-                Alias "QueryPerformanceCounter" (ByRef Counter As Currency) _
-                As LongPtr
+            Private Declare PtrSafe Function GetFrequency Lib "kernel32" Alias _
+                "QueryPerformanceFrequency" (ByRef Frequency As Currency) As LongPtr
+            Private Declare PtrSafe Function GetTime Lib "kernel32" Alias _
+                "QueryPerformanceCounter" (ByRef counter As Currency) As LongPtr
         #Else
-            Private Declare  Function GetFrequency Lib "kernel32" _
-                Alias "QueryPerformanceFrequency" (ByRef Frequency As _
-                Currency) As Long
-            Private Declare Function GetTime Lib "kernel32" _
-                Alias "QueryPerformanceCounter" (ByRef Counter As Currency) _
-                As Long
+            Private Declare  Function GetFrequency Lib "kernel32" Alias _
+                "QueryPerformanceFrequency" (ByRef Frequency As Currency) As Long
+            Private Declare Function GetTime Lib "kernel32" Alias _
+                "QueryPerformanceCounter" (ByRef Counter As Currency) As Long
         #End If
 
+    'LIB user32
+        #If VBA7 Then
+                Private Declare PtrSafe Function SetTimer Lib "user32" (ByVal _
+                    hwnd As LongPtr, ByVal nIDEvent As LongPtr, ByVal uElapse As _
+                    Long, ByVal lpTimerFunc As LongPtr) As LongPtr
+    
+                'Private Declare PtrSafe Function KillTimer Lib "user32" (ByVal _
+                    hwnd As LongPtr, ByVal nIDEvent As LongPtr) As Long
+                'Private SetTimer_Result As LongPtr  'Result value of SetTimer.
+        #Else
+                Private Declare Function SetTimer Lib "user32" (ByVal hwnd As _
+                    Long, ByVal nIDEvent As Long, ByVal uElapse As Long, ByVal _
+                    lpTimerFunc As Long) As Long
+                'Private Declare Function KillTimer Lib "user32" (ByVal hwnd As _
+                    Long, ByVal nIDEvent As Long) As Long
+                'Private SetTimer_Result As Long     'Result value of SetTimer.
+        #End If
+    
     'SLEEP
         #If VBA7 Then
-            Private Declare PtrSafe Sub Sleep Lib "kernel32" ( _
-                        ByVal dwMilliseconds As LongPtr)
+            Private Declare PtrSafe Sub Sleep Lib "kernel32" (ByVal _
+                dwMilliseconds As LongPtr)
         #Else
-            Private Declare Sub Sleep Lib "kernel32" ( _
-                        ByVal dwMilliseconds As Long)
+            Private Declare Sub Sleep Lib "kernel32" ( ByVal dwMilliseconds As _
+                Long)
         #End If
+    
+    'SYSTEM TIME ADJUSTMENT
+        Private Declare PtrSafe Function GetSystemTimeAdjustment Lib "kernel32" _
+            (lpTimeAdjustment As Long, lpTimeIncrement As Long, _
+            lpTimeAdjustmentDisabled As Long) As Long
+    
+    
     '
     '::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
     'VARIABLES
     '::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
     '
     'Timer, GetTickCount, TimeGetTime, TimeGetSystemTime method
-        Private T1              As Double       'Start Time
-        Private T2              As Double       'End time
-        Private ET              As Double       'Elapsed Time
+        Private m_T1                As Double       'Start Time
+        Private m_T2                As Double       'End time
+        Private m_ET                As Double       'Elapsed Time
+        Private m_Freq              As Double       'Frequency
     'QueryPerformance method
-        Dim ccyStartTime        As Currency
-        Dim ccyEndTime          As Currency
-        Dim ccyFrequency        As Currency
-        Dim ccyTimeElapsed      As Currency
+        Private m_ccyStartTime      As Currency
+        Private m_ccyEndTime        As Currency
+        Private m_ccyFrequency      As Currency
+    'Arrays
+        Private arrMethods          As Variant
+        Const TIME_MS = 1
+        Private Mmt                 As MMTIME
+
 '
 '______________________________________________________________________________
 '
 Private Sub Class_Initialize()
-    GetFrequency ccyFrequency
+    GetFrequency m_ccyFrequency
+    m_Freq = m_ccyFrequency
+    Mmt.wType = TIME_MS
+    arrMethods = Array("Timer", "GetTickCount", "TimeGetTime", _
+        "TimeGetSystemTime", "QPC")
 End Sub
+
 '
 '______________________________________________________________________________
 '
-Public Sub StartCounter(Optional Method As Integer = 5)
-'------------------------------------------------------------------------------
-'ROUTINE
-'------------------------------------------------------------------------------
-    Select Case Method
-        '------------------------------
-        'VBA.TIMER
-        '------------------------------
-            'IT RETURNS THE NUMBER OF SECONDS ELAPSED SINCE MIDNIGHT using a
-            'single-precision floating point value. It is not a threaded
-            'control so, it may not be triggered at exactly the correct time.
-            'Delays can be caused by other applications or system processes.
-        Case 1
-            T1 = NextTick
-        
-        '------------------------------
-        'GETTICKCOUNT API
-        '------------------------------
-            'IT RETURNS THE NUMBER OF MILLISECONDS ELAPSED SINCE WINDOWS
-            'WAS STARTED
-            'It will run for 49 days before resetting back to zero.
-        Case 2
-            T1 = GetTickCount
-        
-        '------------------------------
-        'TIMEGETTIME API
-        '------------------------------
-            'IT RETURNS THE NUMBER OF MILLISECONDS ELAPSED SINCE WINDOWS
-            'WAS STARTED
-        Case 3
-            T1 = timeGetTime()
-        
-        '------------------------------
-        'TIMEGETSYSTEMTIME API
-        '------------------------------
-            'IT RETURNS THE CURRENT TIME IN MILLISECONDS
-        Case 4
-            T1 = GetCurrentTime()
-        
-        '------------------------------
-        'QUERYPERFORMANCECOUNTER API
-        '------------------------------
-            'QueryPerformanceCounter returns the current value of the computer’s
-            'performance counter. This will be the whole number representing the
-            'number of “counts” (similar to the number of ticks on a very fast
-            'clock).
-            'QueryPerformanceFrequency returns the number of “counts” there
-            'are per second, which is fixed at system boot.
-            'Both of these functions take a LARGE_INTEGER as an argument,
-            'which is a 64-bit integer. VBA doesn’t have a 64-bit integer
-            '(the VBA long integer has only 32-bits). Luckily, we can use the
-            'VBA currency data type, which is 64-bit.
-        Case 5
-            GetTime ccyStartTime
-            
-        'WRONG INPUT
-        Case Else
-            Exit Sub
-    
-    End Select
-End Sub
-'
-'______________________________________________________________________________
-'
-Public Property Get TimeElapsed(Optional iMethod As Integer = 5) As Variant
+Public Property Get ElapsedTime(Optional iMethod As Integer = 5) As Variant
 '------------------------------------------------------------------------------
 'DECLARE
 '------------------------------------------------------------------------------
@@ -235,7 +208,7 @@ Public Property Get TimeElapsed(Optional iMethod As Integer = 5) As Variant
     '0,000 001 [millionth]                  microsecond [µs]
     '0,001 [thousandth]                     millisecond [ms]
     '1.0                                    second [s]
-    Dim lSeconds        As Double
+    Dim dSeconds        As Double
     Dim sDecimals       As String
     Dim sMilliSeconds   As String
     Dim sMicroSeconds   As String
@@ -247,165 +220,250 @@ Public Property Get TimeElapsed(Optional iMethod As Integer = 5) As Variant
         
         'TIMER
         Case 1
-            T2 = Timer
-            ET = T2 - T1 + Abs((T2 < T1) * 86400)
+            m_T2 = Timer
+            'Manage rollover
+            m_ET = m_T2 - m_T1 + Abs((m_T2 < m_T1) * 86400)
         
         'TICKCOUNT
         Case 2
-            T2 = GetTickCount
-            If T2 < T1 Then
-            'If T2 is smaller than T1 then the tickcount has been reset, use
-            'reset Tick value + T2 - T1
-                ET = ((4294967295# + T2) - T1)
+            m_T2 = GetTickCount
+            'Manage rollover
+            If m_T2 < m_T1 Then
+            'If m_T2 is smaller than m_m_T1 then the tickcount has been reset, use
+            'reset Tick value + m_T2 - m_m_T1
+                m_ET = ((4294967295# + m_T2) - m_T1)
              Else
-                'If T2 is bigger than T1 then just use T2 - T1
-                ET = (T2 - T1) / 1000
+                'If m_T2 is bigger than m_m_T1 then just use m_T2 - m_T1
+                m_ET = (m_T2 - m_T1) / 1000
             End If
         
         'TIMEGETTIME
         Case 3
-            T2 = timeGetTime()
-            ET = (T2 - T1) / 1000
+            m_T2 = timeGetTime()
+            m_ET = (m_T2 - m_T1) / 1000
         
         'TIMEGESTSYSTEMTIME
         Case 4
-            T2 = GetCurrentTime
-            ET = (T2 - T1) / 1000
+            m_T2 = GetCurrentTime
+            m_ET = (m_T2 - m_T1) / 1000
         
         'QUERYPERFORMANCE
         Case 5
-            GetTime ccyEndTime
-            ccyTimeElapsed = ((ccyEndTime - ccyStartTime) * 1000 / _
-                ccyFrequency)
-            ET = ccyTimeElapsed / 1000
+            GetTime m_ccyEndTime
+            m_T2 = m_ccyEndTime
+            m_ET = ((m_T2 - m_T1) / m_Freq)
         
-        'WRONG INPUT
-        Case Else
-            Exit Property
-    
+        'NOW
+        Case 6
+            m_T2 = Now() * 86400
+            m_ET = m_T2 - m_T1
     End Select
 '------------------------------------------------------------------------------
 'ASSIGN RESULT
 '------------------------------------------------------------------------------
-    lSeconds = Fix(ET)
-    sDecimals = GetDecimalString(ET)
+    dSeconds = Fix(m_ET)
+    sDecimals = GetDecimalString(m_ET)
     sMilliSeconds = Mid$(sDecimals, 1, 3)
     sMicroSeconds = Mid$(sDecimals, 4, 3)
     sNanoSeconds = Mid$(sDecimals, 7, 3)
     
-    TimeElapsed = Format(lSeconds / (86400), "HH:nn:ss") & " - " & _
-        sMilliSeconds & " ms - " & _
-        sMicroSeconds & " µs - " & _
-        sNanoSeconds & " ns"
+    ElapsedTime = Format(dSeconds / (86400), "HH:nn:ss") & " - " & sMilliSeconds _
+        & " ms - " & sMicroSeconds & " µs - " & sNanoSeconds & " ns"
 End Property
 '
 '______________________________________________________________________________
 '
-Private Function GetCurrentTime() As Long
-'DECLARE
-    Const TIME_MS = 1
-    Dim Mmt As MMTIME
-'INITIALIZE
-    Mmt.wType = TIME_MS
-    timeGetSystemTime Mmt, LenB(Mmt)
-'ASSIGN RESULT
-    GetCurrentTime = Mmt.Units
-End Function
+Public Property Get ET() As Double
+    ET = m_ET
+End Property
 '
 '______________________________________________________________________________
 '
-Private Function GetDecimalString( _
-                    ByVal dNumber As Double, _
-                    Optional iDigits As Integer = 9) _
-                As String
+Public Property Get Overhead(Optional iMethod As Integer = 5) As String
+    'The API call itself takes a small amount of time to complete
+    StartTimer iMethod
+    Sleep 0
+    Overhead = "Overhead method - " & arrMethods(iMethod - 1) & " - " & _
+        ElapsedTime(iMethod)
+End Property
+'
+'______________________________________________________________________________
+'
+Public Property Get T1() As Double
+    T1 = m_T1
+End Property
+'
+'______________________________________________________________________________
+'
+Public Property Get T2() As Double
+    T2 = m_T2
+End Property
+
+'
+'______________________________________________________________________________
+'
+Public Property Get TickFrequency() As Variant
+    'For kernel32
+    Dim lA As Long
+    Dim lB As Long
+    Dim lC As Long
+    GetSystemTimeAdjustment lA, lB, lC
+    TickFrequency = lB / 10000# & " milliseconds"
+End Property
+
+'
+'______________________________________________________________________________
+'
+Private Function GetCurrentTime() As Long
+    timeGetSystemTime Mmt, LenB(Mmt)
+    GetCurrentTime = Mmt.Units
+End Function
+
+'
+'______________________________________________________________________________
+'
+Private Function GetDecimalString(ByVal dNumber As Double, Optional iDigits As _
+    Integer = 9) As String
+    On Error Resume Next
 'Declare
     Dim strDecimals     As String
 'Calculate decimals, round to iDigits and convert to string
     strDecimals = CStr(Round(dNumber - Fix(dNumber), iDigits)) & String$(2, "0")
 'Get only the decimal part and fill with zeros for a lenght = to iDigits
-    GetDecimalString = Right(strDecimals, Len(strDecimals) - 2) & _
-        String$(iDigits - Len(strDecimals) + 2, "0")
+    GetDecimalString = Right$(strDecimals, Len(strDecimals) - 2)
+    GetDecimalString = GetDecimalString & String$(iDigits + 4 - Len(strDecimals), _
+        "0")
 End Function
+
 '
 '______________________________________________________________________________
 '
-Private Function NextTick() As Double
-'Timer can suffer some inaccuracy
+Private Function NextTick(Optional iMethod As Integer = 5) As Double
 'The starttime may be assigned when the system tick is about to expire
 'Your routine could appear to take longer that it actually does.
-'That's why we wait for the next Timer tick
+'That's why we try to wait for the next Timer tick
 
-'DECLARE
-    Dim T As Single
-'INITIALIZE
-    T = Timer
-'LOOP
-    Do: Loop While T = Timer
-'ASSIGN RESULT
-    NextTick = Timer
-    
+'Declare
+    Dim Tick1           As Double
+    Dim Tick2           As Double
+'Main Routine
+    Select Case iMethod
+        Case 1          'TIMER
+            Tick1 = GetTickCount
+            Do
+                Tick2 = GetTickCount
+                DoEvents
+            Loop While Tick1 = GetTickCount
+            NextTick = Timer
+
+            
+        Case 2          'GET TICK COUNT
+            Tick1 = GetTickCount
+            Do
+                Tick2 = GetTickCount
+            Loop Until Tick2 <> Tick1
+            NextTick = Tick2
+        
+        Case 3          'TIME GET TIME
+            timeBeginPeriod 1
+'            Tick1 = timeGetTime()
+'            Do Until Tick2 <> Tick1: Tick2 = timeGetTime(): Loop
+            NextTick = timeGetTime
+        Case 4          'TIME GET TIME
+            Tick1 = GetCurrentTime()
+            Do
+                Tick2 = GetCurrentTime()
+            Loop Until Tick2 <> Tick1
+            NextTick = Tick2
+        Case 6          'NOW()
+            NextTick = Now() * 86400 'Now() is in 'days'
+    End Select
 End Function
+
 '
 '______________________________________________________________________________
 '
-Public Sub Pause(ByVal lSeconds As Long, Optional iMethod As Integer = 1)
+Private Function NextTickQPC() As Currency
+'Declare
+    Dim Tick1           As Currency
+    Dim Tick2           As Currency
+    
+    GetTime Tick1
+    Do
+        GetTime Tick2
+    Loop Until Tick2 <> Tick1
+    NextTickQPC = Tick2
+End Function
+
 '
-'This SUB will pause the system for a given number of seconds.
+'______________________________________________________________________________
+'
+Public Sub Pause(ByVal dSeconds As Double, Optional iMethod As Integer = 1)
+'
+'This routine will pause the system for a given number of milliseconds.
 'The pause is limited to 1 hour
 'Can be used for testing
 '
-'------------------------------------------------------------------------------
-'CONTROL
-'------------------------------------------------------------------------------
-    If iMethod < 1 Or iMethod > 3 Then Exit Sub
-    If lSeconds > 3600 Then Exit Sub
-    On Error GoTo Proc_Err
-'------------------------------------------------------------------------------
-'MAIN ROUTINE
-'------------------------------------------------------------------------------
+    'Too long
+    If dSeconds > 3600 Then Exit Sub
+    
     Select Case iMethod
         Case 1
-        '------------------------------
-        'SLEEP
-        '------------------------------
-            'Sleep statement depends on the processor’s ticks to calculate the
-            'time delays, which may vary slightly on different machines.
-            'The advantage of the Sleep statement over the Wait function is that
-            'it is more flexible as you can give the time delays in milliseconds.
-            'SLEEP releases the CPU and allows other applications to run on real
-            'multitask systems
-        Sleep lSeconds * 1000
-        '------------------------------
-        'WAIT
-        '------------------------------
+            'The Sleep function can delay by millisecond
+            'Use Sleep API
+            Sleep dSeconds * 1000
+        Case 2  '
+            'The Timer function can only delay by whole seconds
+            'Does not use API functions
+            Dim PauseTime As Double, Start As Double, Finish As Double
+            Dim TotalTime As Double
+            PauseTime = dSeconds
+            Start = Timer    ' Set start time.
+            Do While Timer < Start + PauseTime
+                DoEvents    ' Yield to other processes.
+            Loop
+            Finish = Timer    ' Set end time.
+            TotalTime = Finish - Start    ' Calculate total time.
+            Debug.Print TotalTime
+        Case 3
             'The Wait function can only delay the application by whole seconds
             'Does not use API functions
-        Case 2
-            Application.Wait DateAdd("s", lSeconds, Now)
-        '------------------------------
-        'STOP
-        '------------------------------
+            Application.Wait DateAdd("s", dSeconds, Now)
+        Case 4
             'Does not use API
-            'Does not use built-in Wait function
-        Case 3
+            'Does not use the built-in Wait function
             Dim WaitTill As Double
-            WaitTill = (Now + TimeValue("0:00:" & lSeconds))
+            WaitTill = (Now + TimeValue("0:00:" & dSeconds))
             While Now() < WaitTill
                 DoEvents
             Wend
-            
     End Select
-'------------------------------------------------------------------------------
-'EXIT
-'------------------------------------------------------------------------------
-Proc_Exit:
-    Exit Sub
-'------------------------------------------------------------------------------
-'HANDLE ERRORS
-'------------------------------------------------------------------------------
-Proc_Err:
-    Debug.Print "???"
 End Sub
+
+'
+'______________________________________________________________________________
+'
+' *****************************************************************************
+' SUB StartTimer
+' -----------------------------------------------------------------------------
+' Activates the counter
+' -----------------------------------------------------------------------------
+' INPUT:
+'       iMethod     - (Optional). QPC is the default
+' -----------------------------------------------------------------------------
+' USAGE:
+'
+' *****************************************************************************
+Public Sub StartTimer(Optional iMethod As Integer = 5)
+'Select
+    If iMethod = 5 Then
+        m_ccyStartTime = NextTickQPC
+        m_T1 = m_ccyStartTime
+    Else
+        m_T1 = NextTick(iMethod)
+    End If
+End Sub
+
 '
 '//////////////////////////////////////////////////////////////////////////////
 '                                 TEST
@@ -420,38 +478,49 @@ Public Sub Test_PerformanceMonitor()
 '------------------------------------------------------------------------------
     Dim cPM     As cPerformanceMonitor
     Dim i       As Integer              'Loop counter
-    Dim j       As Long                 'Loop counter
 '------------------------------------------------------------------------------
 'INITIALIZE
 '------------------------------------------------------------------------------
     Set cPM = New cPerformanceMonitor
-    i = 1                               'Change from 1 to 5
 '------------------------------------------------------------------------------
 'TEST CLASS MODULE
 '------------------------------------------------------------------------------
-    For i = 1 To 5
-        cPM.StartCounter (i)
-            cPM.Pause 1                     '1 second
-        Debug.Print "Method " & i & " - "; cPM.TimeElapsed(i)
+    For i = 1 To 20
+        cPM.StartTimer (5)
+            cPM.Pause 1000                    '1 second
+        Debug.Print "Method " & "5" & " - "; cPM.ElapsedTime(5)
     Next i
 '------------------------------------------------------------------------------
 'TEST YOUR CODE
 '------------------------------------------------------------------------------
-'    cPM.StartCounter (5)
+'    cPM.StartTimer (5)
 '        'Your code here (example)
 '        For j = 1 To 10000000: Next j   'Empty loop
-'    Debug.Print cPM.TimeElapsed(5)
+'    Debug.Print cPM.ElapsedTime(5)
+'------------------------------------------------------------------------------
+'TEST FREQUENCY
+'------------------------------------------------------------------------------
+'    Debug.Print cPM.TickFrequency
+'------------------------------------------------------------------------------
+'TEST OVERHEAD
+'------------------------------------------------------------------------------
+'    Debug.Print cPM.Overhead(2)
 '------------------------------------------------------------------------------
 'EXIT
 '------------------------------------------------------------------------------
     Set cPM = Nothing
 End Sub
-
 '
 '//////////////////////////////////////////////////////////////////////////////
 '                               RELEASE NOTE
 '//////////////////////////////////////////////////////////////////////////////
 '
+'  1.2.1    - 26/01/2023
+'
+'           - Added array methods
+'           - Property Overhead
+'           - Property TickFrequency
+'______________________________________________________________________________
 '  1.2.0    - 25/01/2023
 '
 '           - Increased precision to nano-seconds (when available)
@@ -464,3 +533,6 @@ End Sub
 '           - Added example for testing
 '______________________________________________________________________________
 '
+
+
+
