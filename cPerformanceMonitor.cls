@@ -20,11 +20,11 @@ Attribute VB_Exposed = False
 '************
 '
 '************
-'VERSION    *   1.2.2
+'VERSION    *   1.2.4
 '************
 '
 '************
-'LAST UPDATE*   28/01/2023
+'LAST UPDATE*   30/01/2023
 '************
 '
 '==============================================================================
@@ -182,7 +182,6 @@ Option Explicit     'Force to declare all variables
         Private m_ccyFrequency      As Currency
     'Arrays
         Private arrMethods          As Variant
-        Const TIME_MS = 1
         Private Mmt                 As MMTIME
 
 '
@@ -191,9 +190,14 @@ Option Explicit     'Force to declare all variables
 Private Sub Class_Initialize()
     GetFrequency m_ccyFrequency
     m_Freq = m_ccyFrequency
-    Mmt.wType = TIME_MS
-    arrMethods = Array("Timer", "GetTickCount", "TimeGetTime", _
-        "TimeGetSystemTime", "QPC")
+    Mmt.wType = 1       ' 1 Millisecond
+    ReDim arrMethods(1 To 6)
+    arrMethods(1) = "Timer"
+    arrMethods(2) = "GetTickCount"
+    arrMethods(3) = "TimeGetTime"
+    arrMethods(4) = "TimeGetSystemTime"
+    arrMethods(5) = "QPC"
+    arrMethods(6) = "Now()"
 End Sub
 
 '
@@ -302,15 +306,32 @@ End Property
 '
 '______________________________________________________________________________
 '
-Public Property Get TickFrequency() As Variant
+Public Property Get TickInterval() As Variant
     'For kernel32
     Dim lA As Long
     Dim lB As Long
     Dim lC As Long
     GetSystemTimeAdjustment lA, lB, lC
-    TickFrequency = lB / 10000# & " milliseconds"
+    TickInterval = "Tick Interval = " & lB / 10000 & " milliseconds"
 End Property
-
+'
+'______________________________________________________________________________
+'
+Public Property Get HRT_FrequencyPerSecond() As Variant
+    HRT_FrequencyPerSecond = "HRT Tick frequency is: " & m_ccyFrequency / 10000
+End Property
+'
+'______________________________________________________________________________
+'
+Public Property Get HRT_TickInterval() As Variant
+    HRT_TickInterval = "HRT Tick interval is: " & 1 / (m_ccyFrequency * 10000)
+End Property
+'
+'______________________________________________________________________________
+'
+Public Property Get TimerMethod(Idx As Integer) As String
+    TimerMethod = arrMethods(Idx)
+End Property
 '
 '______________________________________________________________________________
 '
@@ -318,7 +339,6 @@ Private Function GetCurrentTime() As Long
     timeGetSystemTime Mmt, LenB(Mmt)
     GetCurrentTime = Mmt.Units
 End Function
-
 '
 '______________________________________________________________________________
 '
@@ -391,7 +411,7 @@ Private Function NextTickQPC() As Currency
     GetTime Tick1
     Do
         GetTime Tick2
-    Loop Until Tick2 <> Tick1
+    Loop Until Tick2 > Tick1
     NextTickQPC = Tick2
 End Function
 
@@ -478,6 +498,7 @@ Public Sub Test_PerformanceMonitor()
 '------------------------------------------------------------------------------
     Dim cPM     As cPerformanceMonitor
     Dim i       As Integer              'Loop counter
+    Dim j       As Long                 'Loop counter
 '------------------------------------------------------------------------------
 'INITIALIZE
 '------------------------------------------------------------------------------
@@ -486,25 +507,43 @@ Public Sub Test_PerformanceMonitor()
 'TEST CLASS MODULE
 '------------------------------------------------------------------------------
     For i = 1 To 20
-        cPM.StartTimer (5)
-            cPM.Pause 1000                    '1 second
-        Debug.Print "Method " & "5" & " - "; cPM.ElapsedTime(5)
+        cPM.StartTimer (1)
+            cPM.Pause 1              '1 second
+        Debug.Print "Method " & "1" & " - "; cPM.ElapsedTime(1)
     Next i
 '------------------------------------------------------------------------------
 'TEST YOUR CODE
 '------------------------------------------------------------------------------
-'    cPM.StartTimer (5)
-'        'Your code here (example)
-'        For j = 1 To 10000000: Next j   'Empty loop
-'    Debug.Print cPM.ElapsedTime(5)
-'------------------------------------------------------------------------------
-'TEST FREQUENCY
-'------------------------------------------------------------------------------
-'    Debug.Print cPM.TickFrequency
+    For i = 1 To 5
+        cPM.StartTimer (i)
+             'Your code here (example)
+             For j = 1 To 10000000: Next j   'Empty loop
+         Debug.Print cPM.ElapsedTime(i)
+    Next i
 '------------------------------------------------------------------------------
 'TEST OVERHEAD
 '------------------------------------------------------------------------------
-'    Debug.Print cPM.Overhead(2)
+    For i = 1 To 5
+        Debug.Print cPM.Overhead(i)
+    Next i
+'------------------------------------------------------------------------------
+'TEST TICK INTERVAL
+'------------------------------------------------------------------------------
+    Debug.Print cPM.TickInterval
+'------------------------------------------------------------------------------
+'TEST HRT TICK FREQUENCY
+'------------------------------------------------------------------------------
+    Debug.Print cPM.HRT_FrequencyPerSecond
+'------------------------------------------------------------------------------
+'TEST HRT TICK FREQUENCY
+'------------------------------------------------------------------------------
+    Debug.Print cPM.HRT_TickInterval
+'------------------------------------------------------------------------------
+'TEST METHODS NAME
+'------------------------------------------------------------------------------
+    For i = 1 To 6
+        Debug.Print i & " - " & cPM.TimerMethod(i)
+    Next i
 '------------------------------------------------------------------------------
 'EXIT
 '------------------------------------------------------------------------------
@@ -533,6 +572,10 @@ End Sub
 '           - Added example for testing
 '______________________________________________________________________________
 '
+
+
+
+
 
 
 
