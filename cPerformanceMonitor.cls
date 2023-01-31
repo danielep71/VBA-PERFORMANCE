@@ -20,11 +20,11 @@ Attribute VB_Exposed = False
 '************
 '
 '************
-'VERSION    *   1.2.4
+'VERSION    *   1.0.0
 '************
 '
 '************
-'LAST UPDATE*   30/01/2023
+'LAST UPDATE*   31/01/2023
 '************
 '
 '==============================================================================
@@ -35,9 +35,19 @@ Attribute VB_Exposed = False
 '  1. PRI - SUB - Class_Initialize
 '  2. PUB - SUB - StartTimer
 '  3. PUB - PRO - ElapsedTime
-'  4. PUB - SUB - Pause
-'  5. PRI - FUN - NextTick
-'  6. PRI - FUN - GetCurrentTime
+'  4. PUB - PRO - T1
+'  5. PUB - PRO - T2
+'  6. PUB - PRO - ET
+'  7. PUB - PRO - TickInterval
+'  8. PUB - PRO - HRT_TickInterval
+'  9. PUB - PRO - HRT_FrequencyPerSecond
+' 10. PUB - PRO - TimerMethod
+' 11. PUB - PRO - Overhead
+' 12. PRI - FUN - GetCurrentTime
+' 13. PRI - FUN - GetDecimalString
+' 14. PRI - FUN - NextTick
+' 15. PRI - FUN - NextTickQPC
+' 16. PUB - SUB - Pause
 '
 '==============================================================================
 '
@@ -56,7 +66,7 @@ Option Explicit     'Force to declare all variables
     'COMPILER CONSTANTS:
     '___________________
     '#If VBA7   ==> Excel 2010 or later else Excel 2007 or earlier
-    '#If Win64  ==> Excel 64-bit else Excel 32-bit
+    '#If Win64  ==> Excel 64-bit APIs else Excel 32-bit APIs
     '
     'KEYWORDS FOR 32/64-BIT
     '_______________________
@@ -183,9 +193,6 @@ Option Explicit     'Force to declare all variables
     'Arrays
         Private arrMethods          As Variant
         Private Mmt                 As MMTIME
-
-'
-'______________________________________________________________________________
 '
 Private Sub Class_Initialize()
     GetFrequency m_ccyFrequency
@@ -199,6 +206,7 @@ Private Sub Class_Initialize()
     arrMethods(5) = "QPC"
     arrMethods(6) = "Now()"
 End Sub
+'
 Public Sub StartTimer(Optional iMethod As Integer = 5)
 'Select
     If iMethod = 5 Then
@@ -340,9 +348,9 @@ Private Function GetDecimalString(ByVal dNumber As Double, Optional iDigits As _
         "0")
 End Function
 '
-Private Function NextTick(Optional iMethod As Integer = 5) As Double
+Private Function NextTick(Optional iMethod As Integer = 1) As Double
 'The starttime may be assigned when the system tick is about to expire
-'Your routine could appear to take longer that it actually does.
+'The routine could appear to take longer that it actually does.
 'That's why we try to wait for the next Timer tick
 
 'Declare
