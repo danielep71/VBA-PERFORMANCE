@@ -199,9 +199,15 @@ Private Sub Class_Initialize()
     arrMethods(5) = "QPC"
     arrMethods(6) = "Now()"
 End Sub
-
-'
-'______________________________________________________________________________
+Public Sub StartTimer(Optional iMethod As Integer = 5)
+'Select
+    If iMethod = 5 Then
+        m_ccyStartTime = NextTickQPC
+        m_T1 = m_ccyStartTime
+    Else
+        m_T1 = NextTick(iMethod)
+    End If
+End Sub
 '
 Public Property Get ElapsedTime(Optional iMethod As Integer = 5) As Variant
 '------------------------------------------------------------------------------
@@ -232,12 +238,12 @@ Public Property Get ElapsedTime(Optional iMethod As Integer = 5) As Variant
         Case 2
             m_T2 = GetTickCount
             'Manage rollover
+            'If m_T2 is smaller than m_T1 then the tickcount has been reset
+            'If m_T2 is bigger than m_m_T1 then just use m_T2 - m_T1
             If m_T2 < m_T1 Then
-            'If m_T2 is smaller than m_m_T1 then the tickcount has been reset, use
-            'reset Tick value + m_T2 - m_m_T1
                 m_ET = ((4294967295# + m_T2) - m_T1)
              Else
-                'If m_T2 is bigger than m_m_T1 then just use m_T2 - m_T1
+
                 m_ET = (m_T2 - m_T1) / 1000
             End If
         
@@ -275,36 +281,17 @@ Public Property Get ElapsedTime(Optional iMethod As Integer = 5) As Variant
         & " ms - " & sMicroSeconds & " µs - " & sNanoSeconds & " ns"
 End Property
 '
-'______________________________________________________________________________
-'
-Public Property Get ET() As Double
-    ET = m_ET
-End Property
-'
-'______________________________________________________________________________
-'
-Public Property Get Overhead(Optional iMethod As Integer = 5) As String
-    'The API call itself takes a small amount of time to complete
-    StartTimer iMethod
-    Sleep 0
-    Overhead = "Overhead method - " & arrMethods(iMethod - 1) & " - " & _
-        ElapsedTime(iMethod)
-End Property
-'
-'______________________________________________________________________________
-'
 Public Property Get T1() As Double
     T1 = m_T1
 End Property
 '
-'______________________________________________________________________________
-'
 Public Property Get T2() As Double
     T2 = m_T2
 End Property
-
 '
-'______________________________________________________________________________
+Public Property Get ET() As Double
+    ET = m_ET
+End Property
 '
 Public Property Get TickInterval() As Variant
     'For kernel32
@@ -315,32 +302,30 @@ Public Property Get TickInterval() As Variant
     TickInterval = "Tick Interval = " & lB / 10000 & " milliseconds"
 End Property
 '
-'______________________________________________________________________________
+Public Property Get HRT_TickInterval() As Variant
+    HRT_TickInterval = "HRT Tick interval is: " & 1 / (m_ccyFrequency * 10000)
+End Property
 '
 Public Property Get HRT_FrequencyPerSecond() As Variant
     HRT_FrequencyPerSecond = "HRT Tick frequency is: " & m_ccyFrequency / 10000
 End Property
 '
-'______________________________________________________________________________
-'
-Public Property Get HRT_TickInterval() As Variant
-    HRT_TickInterval = "HRT Tick interval is: " & 1 / (m_ccyFrequency * 10000)
-End Property
-'
-'______________________________________________________________________________
-'
 Public Property Get TimerMethod(Idx As Integer) As String
     TimerMethod = arrMethods(Idx)
 End Property
 '
-'______________________________________________________________________________
+Public Property Get Overhead(Optional iMethod As Integer = 5) As String
+    'The API call itself takes a small amount of time to complete
+    StartTimer iMethod
+    Sleep 0
+    Overhead = "Overhead method - " & arrMethods(iMethod - 1) & " - " & _
+        ElapsedTime(iMethod)
+End Property
 '
 Private Function GetCurrentTime() As Long
     timeGetSystemTime Mmt, LenB(Mmt)
     GetCurrentTime = Mmt.Units
 End Function
-'
-'______________________________________________________________________________
 '
 Private Function GetDecimalString(ByVal dNumber As Double, Optional iDigits As _
     Integer = 9) As String
@@ -354,9 +339,6 @@ Private Function GetDecimalString(ByVal dNumber As Double, Optional iDigits As _
     GetDecimalString = GetDecimalString & String$(iDigits + 4 - Len(strDecimals), _
         "0")
 End Function
-
-'
-'______________________________________________________________________________
 '
 Private Function NextTick(Optional iMethod As Integer = 5) As Double
 'The starttime may be assigned when the system tick is about to expire
@@ -386,8 +368,8 @@ Private Function NextTick(Optional iMethod As Integer = 5) As Double
         
         Case 3          'TIME GET TIME
             timeBeginPeriod 1
-'            Tick1 = timeGetTime()
-'            Do Until Tick2 <> Tick1: Tick2 = timeGetTime(): Loop
+
+            
             NextTick = timeGetTime
         Case 4          'TIME GET TIME
             Tick1 = GetCurrentTime()
@@ -395,13 +377,11 @@ Private Function NextTick(Optional iMethod As Integer = 5) As Double
                 Tick2 = GetCurrentTime()
             Loop Until Tick2 <> Tick1
             NextTick = Tick2
+        
         Case 6          'NOW()
             NextTick = Now() * 86400 'Now() is in 'days'
     End Select
 End Function
-
-'
-'______________________________________________________________________________
 '
 Private Function NextTickQPC() As Currency
 'Declare
@@ -409,14 +389,10 @@ Private Function NextTickQPC() As Currency
     Dim Tick2           As Currency
     
     GetTime Tick1
-    Do
-        GetTime Tick2
-    Loop Until Tick2 > Tick1
+    Do: GetTime Tick2: Loop Until Tick2 > Tick1
+    
     NextTickQPC = Tick2
 End Function
-
-'
-'______________________________________________________________________________
 '
 Public Sub Pause(ByVal dSeconds As Double, Optional iMethod As Integer = 1)
 '
@@ -459,123 +435,68 @@ Public Sub Pause(ByVal dSeconds As Double, Optional iMethod As Integer = 1)
             Wend
     End Select
 End Sub
-
-'
-'______________________________________________________________________________
-'
-' *****************************************************************************
-' SUB StartTimer
-' -----------------------------------------------------------------------------
-' Activates the counter
-' -----------------------------------------------------------------------------
-' INPUT:
-'       iMethod     - (Optional). QPC is the default
-' -----------------------------------------------------------------------------
-' USAGE:
-'
-' *****************************************************************************
-Public Sub StartTimer(Optional iMethod As Integer = 5)
-'Select
-    If iMethod = 5 Then
-        m_ccyStartTime = NextTickQPC
-        m_T1 = m_ccyStartTime
-    Else
-        m_T1 = NextTick(iMethod)
-    End If
-End Sub
-
 '
 '//////////////////////////////////////////////////////////////////////////////
 '                                 TEST
 '//////////////////////////////////////////////////////////////////////////////
 '
-'Copy this routine in a standard module
+'Copy this routine in a standard module and remove comment block
 '______________________________________________________________________________
 '
-Public Sub Test_PerformanceMonitor()
-'------------------------------------------------------------------------------
-'DECLARE
-'------------------------------------------------------------------------------
-    Dim cPM     As cPerformanceMonitor
-    Dim i       As Integer              'Loop counter
-    Dim j       As Long                 'Loop counter
-'------------------------------------------------------------------------------
-'INITIALIZE
-'------------------------------------------------------------------------------
-    Set cPM = New cPerformanceMonitor
-'------------------------------------------------------------------------------
-'TEST CLASS MODULE
-'------------------------------------------------------------------------------
-    For i = 1 To 20
-        cPM.StartTimer (1)
-            cPM.Pause 1              '1 second
-        Debug.Print "Method " & "1" & " - "; cPM.ElapsedTime(1)
-    Next i
-'------------------------------------------------------------------------------
-'TEST YOUR CODE
-'------------------------------------------------------------------------------
-    For i = 1 To 5
-        cPM.StartTimer (i)
-             'Your code here (example)
-             For j = 1 To 10000000: Next j   'Empty loop
-         Debug.Print cPM.ElapsedTime(i)
-    Next i
-'------------------------------------------------------------------------------
-'TEST OVERHEAD
-'------------------------------------------------------------------------------
-    For i = 1 To 5
-        Debug.Print cPM.Overhead(i)
-    Next i
-'------------------------------------------------------------------------------
-'TEST TICK INTERVAL
-'------------------------------------------------------------------------------
-    Debug.Print cPM.TickInterval
-'------------------------------------------------------------------------------
-'TEST HRT TICK FREQUENCY
-'------------------------------------------------------------------------------
-    Debug.Print cPM.HRT_FrequencyPerSecond
-'------------------------------------------------------------------------------
-'TEST HRT TICK FREQUENCY
-'------------------------------------------------------------------------------
-    Debug.Print cPM.HRT_TickInterval
-'------------------------------------------------------------------------------
-'TEST METHODS NAME
-'------------------------------------------------------------------------------
-    For i = 1 To 6
-        Debug.Print i & " - " & cPM.TimerMethod(i)
-    Next i
-'------------------------------------------------------------------------------
-'EXIT
-'------------------------------------------------------------------------------
-    Set cPM = Nothing
-End Sub
-'
-'//////////////////////////////////////////////////////////////////////////////
-'                               RELEASE NOTE
-'//////////////////////////////////////////////////////////////////////////////
-'
-'  1.2.1    - 26/01/2023
-'
-'           - Added array methods
-'           - Property Overhead
-'           - Property TickFrequency
-'______________________________________________________________________________
-'  1.2.0    - 25/01/2023
-'
-'           - Increased precision to nano-seconds (when available)
-'           - Added function GetDecimalString
-'           - More comments
-'______________________________________________________________________________
-'  1.1.0    - 24/01/2023
-'
-'           - Improved accuracy for Timer method (Function NextTick)
-'           - Added example for testing
-'______________________________________________________________________________
-'
-
-
-
-
-
-
-
+'Public Sub Test_PerformanceMonitor()
+''------------------------------------------------------------------------------
+''DECLARE
+''------------------------------------------------------------------------------
+'    Dim cPM     As cPerformanceMonitor
+'    Dim i       As Integer              'Loop counter
+'    Dim j       As Long                 'Loop counter
+''------------------------------------------------------------------------------
+''INITIALIZE
+''------------------------------------------------------------------------------
+'    Set cPM = New cPerformanceMonitor
+''------------------------------------------------------------------------------
+''TEST CLASS MODULE
+''------------------------------------------------------------------------------
+'    For i = 1 To 20
+'        cPM.StartTimer (1)
+'        cPM.Pause 1              '1 second
+'        Debug.Print "Method " & "1" & " - "; cPM.ElapsedTime(1)
+'    Next i
+''------------------------------------------------------------------------------
+''TEST YOUR CODE
+''------------------------------------------------------------------------------
+'    For i = 1 To 5
+'        cPM.StartTimer (i)
+'        'Your code here (example)
+'        For j = 1 To 10000000: Next j   'Empty loop
+'        Debug.Print cPM.ElapsedTime(i)
+'    Next i
+''------------------------------------------------------------------------------
+''TEST OVERHEAD
+''------------------------------------------------------------------------------
+'    For i = 1 To 5
+'        Debug.Print cPM.Overhead(i)
+'    Next i
+''------------------------------------------------------------------------------
+''TEST TICK INTERVAL
+''------------------------------------------------------------------------------
+'    Debug.Print cPM.TickInterval
+''------------------------------------------------------------------------------
+''TEST HRT TICK FREQUENCY
+''------------------------------------------------------------------------------
+'    Debug.Print cPM.HRT_FrequencyPerSecond
+''------------------------------------------------------------------------------
+''TEST HRT TICK FREQUENCY
+''------------------------------------------------------------------------------
+'    Debug.Print cPM.HRT_TickInterval
+''------------------------------------------------------------------------------
+''TEST METHODS NAME
+''------------------------------------------------------------------------------
+'    For i = 1 To 6
+'        Debug.Print i & " - " & cPM.TimerMethod(i)
+'    Next i
+''------------------------------------------------------------------------------
+''EXIT
+''------------------------------------------------------------------------------
+'    Set cPM = Nothing
+'End Sub
