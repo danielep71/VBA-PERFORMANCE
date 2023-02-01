@@ -148,17 +148,16 @@ Option Explicit     'Force to declare all variables
                 Private Declare PtrSafe Function SetTimer Lib "user32" (ByVal _
                     hwnd As LongPtr, ByVal nIDEvent As LongPtr, ByVal uElapse As _
                     Long, ByVal lpTimerFunc As LongPtr) As LongPtr
-    
-                'Private Declare PtrSafe Function KillTimer Lib "user32" (ByVal _
+                Private Declare PtrSafe Function KillTimer Lib "user32" (ByVal _
                     hwnd As LongPtr, ByVal nIDEvent As LongPtr) As Long
-                'Private SetTimer_Result As LongPtr  'Result value of SetTimer.
+                Private SetTimer_Result As LongPtr  'Result value of SetTimer.
         #Else
                 Private Declare Function SetTimer Lib "user32" (ByVal hwnd As _
                     Long, ByVal nIDEvent As Long, ByVal uElapse As Long, ByVal _
                     lpTimerFunc As Long) As Long
-                'Private Declare Function KillTimer Lib "user32" (ByVal hwnd As _
+                Private Declare Function KillTimer Lib "user32" (ByVal hwnd As _
                     Long, ByVal nIDEvent As Long) As Long
-                'Private SetTimer_Result As Long     'Result value of SetTimer.
+                Private SetTimer_Result As Long     'Result value of SetTimer.
         #End If
     
     'SLEEP
@@ -175,7 +174,6 @@ Option Explicit     'Force to declare all variables
             (lpTimeAdjustment As Long, lpTimeIncrement As Long, _
             lpTimeAdjustmentDisabled As Long) As Long
     
-    
     '
     '::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
     'VARIABLES
@@ -190,8 +188,17 @@ Option Explicit     'Force to declare all variables
         Private m_ccyStartTime      As Currency
         Private m_ccyEndTime        As Currency
         Private m_ccyFrequency      As Currency
-    'Arrays
+    '
+    '::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+    'ARRAYS
+    '::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+    '
         Private arrMethods          As Variant
+    '
+    '::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+    'UDTs
+    '::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+    '
         Private Mmt                 As MMTIME
 '
 Private Sub Class_Initialize()
@@ -247,7 +254,7 @@ Public Property Get ElapsedTime(Optional iMethod As Integer = 5) As Variant
             m_T2 = GetTickCount
             'Manage rollover
             'If m_T2 is smaller than m_T1 then the tickcount has been reset
-            'If m_T2 is bigger than m_m_T1 then just use m_T2 - m_T1
+            'If m_T2 is bigger than m_T1 then just use m_T2 - m_T1
             If m_T2 < m_T1 Then
                 m_ET = ((4294967295# + m_T2) - m_T1)
              Else
