@@ -20,11 +20,11 @@ Attribute VB_Exposed = False
 '************
 '
 '************
-'VERSION    *   1.0.0
+'VERSION    *   1.0.1
 '************
 '
 '************
-'LAST UPDATE*   31/01/2023
+'LAST UPDATE*   03/02/2023
 '************
 '
 '==============================================================================
@@ -118,7 +118,7 @@ Option Explicit     'Force to declare all variables
         Private Type MMTIME
             wType       As Long
             Units       As Long
-            smpteVal    As Long
+            smpteVal    As SMPTE
             songPtrPos  As Long
         End Type
         
@@ -473,14 +473,14 @@ End Sub
 ''TEST CLASS MODULE
 ''------------------------------------------------------------------------------
 '    For i = 1 To 20
-'        cPM.StartTimer (1)
+'        cPM.StartTimer (5)
 '        cPM.Pause 1              '1 second
-'        Debug.Print "Method " & "1" & " - "; cPM.ElapsedTime(1)
+'        Debug.Print "Method " & "5" & " - "; cPM.ElapsedTime(5)
 '    Next i
 ''------------------------------------------------------------------------------
 ''TEST YOUR CODE
 ''------------------------------------------------------------------------------
-'    For i = 1 To 5
+'    For i = 1 To 6
 '        cPM.StartTimer (i)
 '        'Your code here (example)
 '        For j = 1 To 10000000: Next j   'Empty loop
@@ -489,7 +489,7 @@ End Sub
 ''------------------------------------------------------------------------------
 ''TEST OVERHEAD
 ''------------------------------------------------------------------------------
-'    For i = 1 To 5
+'    For i = 1 To 6
 '        Debug.Print cPM.Overhead(i)
 '    Next i
 ''------------------------------------------------------------------------------
